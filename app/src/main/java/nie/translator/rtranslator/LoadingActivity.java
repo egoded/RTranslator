@@ -23,6 +23,7 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import androidx.appcompat.app.AlertDialog;
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ import nie.translator.rtranslator.access.AccessActivity;
 import nie.translator.rtranslator.tools.CustomLocale;
 import nie.translator.rtranslator.tools.ErrorCodes;
 import nie.translator.rtranslator.tools.ImageActivity;
+import nie.translator.rtranslator.tools.UpdateChecker;
 import nie.translator.rtranslator.voice_translation.VoiceTranslationActivity;
 import nie.translator.rtranslator.voice_translation.neural_networks.NeuralNetworkApi;
 import nie.translator.rtranslator.voice_translation.neural_networks.translation.Translator;
@@ -85,11 +87,8 @@ public class LoadingActivity extends GeneralActivity {
             startActivity(intent);
             overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
             finish();
-        } else if (global.getTranslator() != null && global.getSpeechRecognizer() != null) {
-            startVoiceTranslationActivity();
         } else {
-            initializeApp(false);
-            //onFailure(new int[]{ErrorCodes.GOOGLE_TTS_ERROR}, 0);
+            checkForUpdates();
         }
     }
 
@@ -97,6 +96,59 @@ public class LoadingActivity extends GeneralActivity {
     protected void onPause() {
         super.onPause();
         isVisible = false;
+    }
+
+    private void checkForUpdates() {
+        UpdateChecker checker = new UpdateChecker(this);
+        checker.checkForUpdate(new UpdateChecker.UpdateCheckListener() {
+            @Override
+            public void onUpdateAvailable(int serverVersionCode, String serverVersionName) {
+                if (!isVisible) return;
+                showingError = true;
+                AlertDialog.Builder builder = new AlertDialog.Builder(LoadingActivity.this);
+                builder.setTitle("Обновление");
+                builder.setMessage("Доступна новая версия " + serverVersionName + ". Обновить?");
+                builder.setPositiveButton("Обновить", (dialog, which) -> {
+                    checker.downloadAndInstall(new UpdateChecker.DownloadListener() {
+                        @Override
+                        public void onDownloadComplete(java.io.File apkFile) {
+                            // Установка запустится автоматически
+                        }
+
+                        @Override
+                        public void onDownloadError(String error) {
+                            Log.e("LoadingActivity", "Ошибка загрузки обновления: " + error);
+                            proceedAfterUpdateCheck();
+                        }
+                    });
+                });
+                builder.setNegativeButton("Пропустить", (dialog, which) -> {
+                    showingError = false;
+                    proceedAfterUpdateCheck();
+                });
+                builder.setCancelable(false);
+                builder.show();
+            }
+
+            @Override
+            public void onNoUpdate() {
+                proceedAfterUpdateCheck();
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e("LoadingActivity", "Ошибка проверки обновлений: " + error);
+                proceedAfterUpdateCheck();
+            }
+        });
+    }
+
+    private void proceedAfterUpdateCheck() {
+        if (global.getTranslator() != null && global.getSpeechRecognizer() != null) {
+            startVoiceTranslationActivity();
+        } else {
+            initializeApp(false);
+        }
     }
 
     private void initializeApp(boolean ignoreTTSError) {

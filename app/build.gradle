@@ -74,7 +74,27 @@ android {
         resolutionStrategy.force 'com.google.code.findbugs:jsr305:3.0.2'
         resolutionStrategy.force "com.android.support:support-annotations:$supportLibraryVersion"
     }
+    flavorDimensions "environment"
     productFlavors {
+        dev {
+            dimension "environment"
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
+            buildConfigField "String", "UPDATE_SERVER_URL", "\"http://10.0.2.2:3000\""
+            buildConfigField "String", "BUILD_ENV", "\"dev\""
+        }
+        stage {
+            dimension "environment"
+            applicationIdSuffix ".stage"
+            versionNameSuffix "-stage"
+            buildConfigField "String", "UPDATE_SERVER_URL", "\"http://10.0.2.2:3000\""
+            buildConfigField "String", "BUILD_ENV", "\"stage\""
+        }
+        prod {
+            dimension "environment"
+            buildConfigField "String", "UPDATE_SERVER_URL", "\"http://10.0.2.2:3000\""
+            buildConfigField "String", "BUILD_ENV", "\"prod\""
+        }
     }
     externalNativeBuild {
         cmake {

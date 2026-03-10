@@ -37,6 +37,7 @@
     <!--<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />-->
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name="nie.translator.rtranslator.Global"
@@ -105,6 +106,16 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/filepaths" />
         </provider>
+        <provider
+            android:name="nie.translator.rtranslator.tools.UpdateFileProvider"
+            android:authorities="${applicationId}.update.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
+
         <uses-library
             android:name="com.sec.android.app.multiwindow"
             android:required="false" />

@@ -1,0 +1,14 @@
+{
+  "dev": {
+    "versionCode": 1,
+    "versionName": "1.0.0"
+  },
+  "stage": {
+    "versionCode": 1,
+    "versionName": "1.0.0"
+  },
+  "prod": {
+    "versionCode": 1,
+    "versionName": "1.0.0"
+  }
+}
