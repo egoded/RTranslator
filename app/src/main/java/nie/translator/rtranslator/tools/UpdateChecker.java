@@ -1,12 +1,8 @@
 package nie.translator.rtranslator.tools;
 
-import android.app.DownloadManager;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.net.Uri;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -17,6 +13,8 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -25,6 +23,8 @@ import nie.translator.rtranslator.BuildConfig;
 
 public class UpdateChecker {
     private static final String TAG = "UpdateChecker";
+    private static final String UPDATE_SERVER_URL = "http://10.0.12.102:3001";
+
     private final Context context;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -35,6 +35,7 @@ public class UpdateChecker {
     }
 
     public interface DownloadListener {
+        void onProgress(int percent);
         void onDownloadComplete(File apkFile);
         void onDownloadError(String error);
     }
@@ -46,9 +47,8 @@ public class UpdateChecker {
     public void checkForUpdate(UpdateCheckListener listener) {
         new Thread(() -> {
             try {
-                String serverUrl = BuildConfig.UPDATE_SERVER_URL;
-                String env = BuildConfig.BUILD_ENV;
-                String urlStr = serverUrl + "/" + env + "/version";
+                String updatePath = BuildConfig.UPDATE_PATH;
+                String urlStr = UPDATE_SERVER_URL + "/" + updatePath + "/version";
 
                 URL url = new URL(urlStr);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -58,7 +58,8 @@ public class UpdateChecker {
 
                 int responseCode = conn.getResponseCode();
                 if (responseCode != 200) {
-                    mainHandler.post(() -> listener.onError("Сервер вернул код " + responseCode));
+                    conn.disconnect();
+                    mainHandler.post(() -> listener.onError("HTTP " + responseCode));
                     return;
                 }
 
@@ -90,57 +91,61 @@ public class UpdateChecker {
         }).start();
     }
 
-    public void downloadAndInstall(DownloadListener listener) {
-        String serverUrl = BuildConfig.UPDATE_SERVER_URL;
-        String env = BuildConfig.BUILD_ENV;
-        String downloadUrl = serverUrl + "/" + env + "/download";
-        String fileName = "RTranslator-update.apk";
+    public void downloadApk(DownloadListener listener) {
+        new Thread(() -> {
+            try {
+                String updatePath = BuildConfig.UPDATE_PATH;
+                String urlStr = UPDATE_SERVER_URL + "/" + updatePath + "/download";
 
-        // Удаляем старый файл если есть
-        File dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-        File apkFile = new File(dir, fileName);
-        if (apkFile.exists()) {
-            apkFile.delete();
-        }
+                HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(15000);
+                conn.setReadTimeout(60000);
 
-        DownloadManager downloadManager = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
-        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(downloadUrl));
-        request.setTitle("Обновление RTranslator");
-        request.setDescription("Загрузка новой версии...");
-        request.setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName);
-        request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-
-        long downloadId = downloadManager.enqueue(request);
-
-        BroadcastReceiver receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context ctx, Intent intent) {
-                long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-                if (id == downloadId) {
-                    context.unregisterReceiver(this);
-                    File file = new File(dir, fileName);
-                    if (file.exists()) {
-                        mainHandler.post(() -> listener.onDownloadComplete(file));
-                        installApk(file);
-                    } else {
-                        mainHandler.post(() -> listener.onDownloadError("Файл не найден после загрузки"));
-                    }
+                int responseCode = conn.getResponseCode();
+                if (responseCode != 200) {
+                    conn.disconnect();
+                    mainHandler.post(() -> listener.onDownloadError("HTTP " + responseCode));
+                    return;
                 }
-            }
-        };
 
-        context.registerReceiver(receiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-                Context.RECEIVER_EXPORTED);
+                File apkFile = new File(context.getCacheDir(), "update.apk");
+                InputStream input = conn.getInputStream();
+                FileOutputStream output = new FileOutputStream(apkFile);
+                try {
+                    byte[] buffer = new byte[8192];
+                    int bytesRead;
+                    long total = 0;
+                    int contentLength = conn.getContentLength();
+                    while ((bytesRead = input.read(buffer)) != -1) {
+                        output.write(buffer, 0, bytesRead);
+                        total += bytesRead;
+                        if (contentLength > 0) {
+                            int pct = (int) (total * 100 / contentLength);
+                            mainHandler.post(() -> listener.onProgress(pct));
+                        }
+                    }
+                } finally {
+                    output.close();
+                    input.close();
+                }
+                conn.disconnect();
+                mainHandler.post(() -> listener.onDownloadComplete(apkFile));
+
+            } catch (Exception e) {
+                Log.e(TAG, "Ошибка скачивания APK", e);
+                mainHandler.post(() -> listener.onDownloadError(e.getMessage()));
+            }
+        }).start();
     }
 
     public void installApk(File apkFile) {
         Uri apkUri = FileProvider.getUriForFile(context,
-                context.getPackageName() + ".update.provider", apkFile);
+                context.getPackageName() + ".fileprovider", apkFile);
 
         Intent intent = new Intent(Intent.ACTION_VIEW);
         intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
         context.startActivity(intent);
     }
 }

@@ -133,7 +133,7 @@ public class DownloadReceiver extends BroadcastReceiver {
         editor.apply();
         //we move the downloaded content to internal storage and start the next download
         File from = new File(context.getExternalFilesDir(null) + "/" + DownloadFragment.DOWNLOAD_NAMES[urlIndex]);
-        File to = new File(context.getFilesDir() + "/" + DownloadFragment.DOWNLOAD_NAMES[urlIndex]);
+        File to = new File(((Global) context.getApplicationContext()).getModelsDir().getPath() + "/" + DownloadFragment.DOWNLOAD_NAMES[urlIndex]);
         int finalUrlIndex = urlIndex;
         FileTools.moveFile(from, to, new FileTools.MoveFileCallback() {
             @Override
@@ -163,7 +163,7 @@ public class DownloadReceiver extends BroadcastReceiver {
         SharedPreferences.Editor editor;
         if (urlIndex < (DownloadFragment.DOWNLOAD_URLS.length - 1)) {  //if the download done is not the last one
             //we verify if the model to be downloaded next is already in internal memory and if it is not corrupted
-            String nextDownloadInternalPath = context.getFilesDir() + "/" + DownloadFragment.DOWNLOAD_NAMES[urlIndex + 1];
+            String nextDownloadInternalPath = ((Global) context.getApplicationContext()).getModelsDir().getPath() + "/" + DownloadFragment.DOWNLOAD_NAMES[urlIndex + 1];
             File nextDownloadInternalFile = new File(nextDownloadInternalPath);
             if(nextDownloadInternalFile.exists()){
                 NeuralNetworkApi.testModelIntegrity(nextDownloadInternalPath, new NeuralNetworkApi.InitListener() {

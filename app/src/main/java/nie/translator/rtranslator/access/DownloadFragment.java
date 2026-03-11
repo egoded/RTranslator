@@ -16,6 +16,7 @@
 
 package nie.translator.rtranslator.access;
 
+import nie.translator.rtranslator.BuildConfig;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
@@ -46,17 +47,18 @@ import nie.translator.rtranslator.tools.FileTools;
 import nie.translator.rtranslator.voice_translation.neural_networks.NeuralNetworkApi;
 
 public class DownloadFragment extends Fragment {
+    private static final String MODELS_BASE_URL = BuildConfig.UPDATE_SERVER_URL + "/models/";
     public static final String[] DOWNLOAD_URLS = {
-            "https://github.com/niedev/RTranslator/releases/download/2.0.0/NLLB_cache_initializer.onnx",
-            "https://github.com/niedev/RTranslator/releases/download/2.0.0/NLLB_decoder.onnx",
-            "https://github.com/niedev/RTranslator/releases/download/2.0.0/NLLB_embed_and_lm_head.onnx",
-            "https://github.com/niedev/RTranslator/releases/download/2.0.0/NLLB_encoder.onnx",
-            "https://github.com/niedev/RTranslator/releases/download/2.0.0/Whisper_cache_initializer.onnx",
-            "https://github.com/niedev/RTranslator/releases/download/2.0.0/Whisper_cache_initializer_batch.onnx",
-            "https://github.com/niedev/RTranslator/releases/download/2.0.0/Whisper_decoder.onnx",
-            "https://github.com/niedev/RTranslator/releases/download/2.0.0/Whisper_detokenizer.onnx",
-            "https://github.com/niedev/RTranslator/releases/download/2.0.0/Whisper_encoder.onnx",
-            "https://github.com/niedev/RTranslator/releases/download/2.0.0/Whisper_initializer.onnx"
+            MODELS_BASE_URL + "NLLB_cache_initializer.onnx",
+            MODELS_BASE_URL + "NLLB_decoder.onnx",
+            MODELS_BASE_URL + "NLLB_embed_and_lm_head.onnx",
+            MODELS_BASE_URL + "NLLB_encoder.onnx",
+            MODELS_BASE_URL + "Whisper_cache_initializer.onnx",
+            MODELS_BASE_URL + "Whisper_cache_initializer_batch.onnx",
+            MODELS_BASE_URL + "Whisper_decoder.onnx",
+            MODELS_BASE_URL + "Whisper_detokenizer.onnx",
+            MODELS_BASE_URL + "Whisper_encoder.onnx",
+            MODELS_BASE_URL + "Whisper_initializer.onnx"
     };
     public static final String[] DOWNLOAD_NAMES = {
             "NLLB_cache_initializer.onnx",
@@ -431,7 +433,7 @@ public class DownloadFragment extends Fragment {
             if(nameIndex != -1) {
                 //we restart the transfer
                 File from = new File(global.getExternalFilesDir(null) + "/" + DownloadFragment.DOWNLOAD_NAMES[nameIndex]);
-                File to = new File(global.getFilesDir() + "/" + DownloadFragment.DOWNLOAD_NAMES[nameIndex]);
+                File to = new File(global.getModelsDir().getPath() + "/" + DownloadFragment.DOWNLOAD_NAMES[nameIndex]);
                 int finalNameIndex = nameIndex;
                 FileTools.moveFile(from, to, new FileTools.MoveFileCallback() {
                     @Override

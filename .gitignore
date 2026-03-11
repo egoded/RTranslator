@@ -7,3 +7,7 @@
 .externalNativeBuild
 app/.cxx
 app/release
+Server/models/
+Server/apk/
+Server/node_modules/
+Server/scan.log

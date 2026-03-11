@@ -76,6 +76,22 @@ public class FileTools {
         }
     }
 
+    public static boolean copyAssetToDirectory(Context context, String assetFileName, File directory){
+        try {
+            File outFile = new File(directory, assetFileName);
+            InputStream in = context.getAssets().open(assetFileName);
+            OutputStream out = new FileOutputStream(outFile);
+            copyFile(in, out);
+            in.close();
+            out.flush();
+            out.close();
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     public static void copyFile(InputStream in, OutputStream out) throws IOException {
         byte[] buffer = new byte[1024];
         int read;

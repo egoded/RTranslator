@@ -16,64 +16,58 @@
 
 package nie.translator.rtranslator;
 
-import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.TextView;
 
-import androidx.appcompat.app.AlertDialog;
-import java.util.ArrayList;
-import nie.translator.rtranslator.access.AccessActivity;
-import nie.translator.rtranslator.tools.CustomLocale;
-import nie.translator.rtranslator.tools.ErrorCodes;
-import nie.translator.rtranslator.tools.ImageActivity;
+import nie.translator.rtranslator.BuildConfig;
 import nie.translator.rtranslator.tools.UpdateChecker;
-import nie.translator.rtranslator.voice_translation.VoiceTranslationActivity;
-import nie.translator.rtranslator.voice_translation.neural_networks.NeuralNetworkApi;
-import nie.translator.rtranslator.voice_translation.neural_networks.translation.Translator;
 
 import androidx.core.splashscreen.SplashScreen;
 
 
 public class LoadingActivity extends GeneralActivity {
-    private final boolean START_IMAGE = false;
     private Handler mainHandler;
     private boolean isVisible = false;
     private Global global;
-    private boolean startingActivity = false;
     private boolean showingError = false;
+    private boolean updateRequired = false;
+
+    private TextView tvStatus;
+    private Button btnRetry;
 
     public LoadingActivity() {
-        // Required empty public constructor
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         String previousActivity = getIntent().getStringExtra("activity");
         SplashScreen splashScreen = null;
-        if(previousActivity == null || !previousActivity.equals("download")) {  //if this activity is called by the DownloadFragment we don't use the splash screen
-            // Handle the splash screen transition (it must remain before the super.onCreate() call).
+        if (previousActivity == null || !previousActivity.equals("download")) {
             splashScreen = SplashScreen.installSplashScreen(this);
         }
         super.onCreate(savedInstanceState);
-        if(splashScreen == null){
+        if (splashScreen == null) {
             setTheme(R.style.Theme_Speech);
         }
         setContentView(R.layout.activity_loading);
         mainHandler = new Handler(Looper.getMainLooper());
 
-        // Keep the splash screen visible for this Activity.
-        if(splashScreen != null) {
-            splashScreen.setKeepOnScreenCondition(new SplashScreen.KeepOnScreenCondition() {
-                @Override
-                public boolean shouldKeepOnScreen() {
-                    return !showingError;
-                }
-            });
+        tvStatus = findViewById(R.id.tvUpdateStatus);
+        btnRetry = findViewById(R.id.btnRetryUpdate);
+
+        if (btnRetry != null) {
+            btnRetry.setOnClickListener(v -> checkForUpdates());
+        }
+
+        if (splashScreen != null) {
+            splashScreen.setKeepOnScreenCondition(() -> !showingError);
         }
     }
 
@@ -81,12 +75,10 @@ public class LoadingActivity extends GeneralActivity {
         super.onResume();
         isVisible = true;
         global = (Global) getApplication();
-        if (global.isFirstStart()) {
-            Intent intent = new Intent(this, AccessActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
-            finish();
+
+        if (updateRequired) {
+            setStatusText("Необходимо установить обновление", Color.RED);
+            showRetryButton(true);
         } else {
             checkForUpdates();
         }
@@ -99,259 +91,76 @@ public class LoadingActivity extends GeneralActivity {
     }
 
     private void checkForUpdates() {
+        showRetryButton(false);
+        setStatusText("Проверка обновлений...", Color.parseColor("#FF9800"));
+
         UpdateChecker checker = new UpdateChecker(this);
         checker.checkForUpdate(new UpdateChecker.UpdateCheckListener() {
             @Override
             public void onUpdateAvailable(int serverVersionCode, String serverVersionName) {
                 if (!isVisible) return;
                 showingError = true;
-                AlertDialog.Builder builder = new AlertDialog.Builder(LoadingActivity.this);
-                builder.setTitle("Обновление");
-                builder.setMessage("Доступна новая версия " + serverVersionName + ". Обновить?");
-                builder.setPositiveButton("Обновить", (dialog, which) -> {
-                    checker.downloadAndInstall(new UpdateChecker.DownloadListener() {
-                        @Override
-                        public void onDownloadComplete(java.io.File apkFile) {
-                            // Установка запустится автоматически
-                        }
-
-                        @Override
-                        public void onDownloadError(String error) {
-                            Log.e("LoadingActivity", "Ошибка загрузки обновления: " + error);
-                            proceedAfterUpdateCheck();
-                        }
-                    });
-                });
-                builder.setNegativeButton("Пропустить", (dialog, which) -> {
-                    showingError = false;
-                    proceedAfterUpdateCheck();
-                });
-                builder.setCancelable(false);
-                builder.show();
+                updateRequired = true;
+                setStatusText("Доступна версия " + serverVersionCode + "\nСкачивание...", Color.parseColor("#1976D2"));
+                Log.i("LoadingActivity", "Автообновление: " + BuildConfig.VERSION_CODE + " → " + serverVersionCode);
+                downloadAndInstall(checker);
             }
 
             @Override
             public void onNoUpdate() {
-                proceedAfterUpdateCheck();
+                updateRequired = false;
+                startTranslateActivity();
             }
 
             @Override
             public void onError(String error) {
-                Log.e("LoadingActivity", "Ошибка проверки обновлений: " + error);
-                proceedAfterUpdateCheck();
+                showingError = true;
+                setStatusText("Сервер обновлений недоступен\n" + error, Color.RED);
+                showRetryButton(true);
             }
         });
     }
 
-    private void proceedAfterUpdateCheck() {
-        if (global.getTranslator() != null && global.getSpeechRecognizer() != null) {
-            startVoiceTranslationActivity();
-        } else {
-            initializeApp(false);
-        }
-    }
-
-    private void initializeApp(boolean ignoreTTSError) {
-        global.getLanguages(false, ignoreTTSError, new Global.GetLocalesListListener() {
+    private void downloadAndInstall(UpdateChecker checker) {
+        checker.downloadApk(new UpdateChecker.DownloadListener() {
             @Override
-            public void onSuccess(ArrayList<CustomLocale> result) {
-                global.initializeTranslator(new Translator.InitListener() {
-                    @Override
-                    public void onInitializationFinished() {
-                        global.initializeSpeechRecognizer(new NeuralNetworkApi.InitListener() {
-                            @Override
-                            public void onInitializationFinished() {
-                                if (isVisible) {
-                                    startVoiceTranslationActivity();
-                                }
-                            }
-
-                            @Override
-                            public void onError(int[] reasons, long value) {
-                                global.deleteSpeechRecognizer();  //we do this to ensure the restart of the loading of models when the app is restarted
-                                LoadingActivity.this.onFailure(reasons, value);
-                            }
-                        });
-                    }
-
-                    @Override
-                    public void onError(int[] reasons, long value) {
-                        global.deleteTranslator();   //we do this to ensure the restart of the loading of models when the app is restarted
-                        LoadingActivity.this.onFailure(reasons, value);
-                    }
-                });
+            public void onProgress(int percent) {
+                setStatusText("Скачивание: " + percent + "%", Color.parseColor("#1976D2"));
             }
 
             @Override
-            public void onFailure(int[] reasons, long value) {
-                LoadingActivity.this.onFailure(reasons, value);
+            public void onDownloadComplete(java.io.File apkFile) {
+                Log.i("LoadingActivity", "APK скачан: " + apkFile.length() / 1024 + " КБ");
+                setStatusText("Установка...", Color.parseColor("#1976D2"));
+                checker.installApk(apkFile);
+            }
+
+            @Override
+            public void onDownloadError(String error) {
+                Log.e("LoadingActivity", "Ошибка скачивания: " + error);
+                setStatusText("Ошибка скачивания: " + error, Color.RED);
+                showRetryButton(true);
             }
         });
     }
 
-    private void startVoiceTranslationActivity() {
-        if(!START_IMAGE) {
-            startingActivity = true;
-            Intent intent = new Intent(LoadingActivity.this, VoiceTranslationActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
-            finish();
-        }else{
-            startImageActivity();
-        }
-    }
-
-    private void startImageActivity() {
-        startingActivity = true;
-        Intent intent = new Intent(LoadingActivity.this, ImageActivity.class);
+    private void startTranslateActivity() {
+        Intent intent = new Intent(this, TranslateActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
-        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
-        finish();
-
-    }
-
-    private void notifyGoogleTTSErrorDialog() {
-        mainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                showGoogleTTSErrorDialog(new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        initializeApp(true);
-                    }
-                });
-            }
-        });
-    }
-
-    public void notifyInternetLack() {
-        mainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (isVisible) {
-                    // creation of the dialog.
-                    AlertDialog.Builder builder = new AlertDialog.Builder(LoadingActivity.this);
-                    //builder.setCancelable(true);
-                    builder.setMessage(R.string.error_internet_lack_loading);
-                    builder.setNegativeButton(R.string.exit, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            finish();
-                        }
-                    });
-                    builder.setPositiveButton(R.string.retry, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialogInterface, int i) {
-                            initializeApp(false);
-                        }
-                    });
-                    AlertDialog dialog = builder.create();
-                    dialog.setCanceledOnTouchOutside(false);
-                    dialog.show();
-                }
-            }
-        });
-    }
-
-    public void notifyModelsLoadingError() {
-        mainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (isVisible) {
-                    // creation of the dialog.
-                    AlertDialog.Builder builder = new AlertDialog.Builder(LoadingActivity.this);
-                    //builder.setCancelable(true);
-                    builder.setMessage(R.string.error_models_loading);
-                    builder.setPositiveButton(R.string.fix, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            if(global != null){
-                                restartDownload();
-                            }
-                        }
-                    });
-                    builder.setNegativeButton(R.string.exit, new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            finish();
-                        }
-                    });
-                    AlertDialog dialog = builder.create();
-                    dialog.setCanceledOnTouchOutside(false);
-                    dialog.show();
-                }
-            }
-        });
-    }
-
-    private void notifyMissingGoogleTTSDialog() {
-        mainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (isVisible) {
-                    showMissingGoogleTTSDialog(new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            initializeApp(true);
-                        }
-                    });
-                }
-            }
-        });
-    }
-
-
-    private void restartDownload(){
-        //we reset all the download shared preferences
-        SharedPreferences sharedPreferences = getSharedPreferences("default", Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor;
-        editor = sharedPreferences.edit();
-        editor.putLong("currentDownloadId", -1);
-        editor.apply();
-        editor = sharedPreferences.edit();
-        editor.putString("lastDownloadSuccess", "");
-        editor.apply();
-        editor = sharedPreferences.edit();
-        editor.putString("lastTransferSuccess", "");
-        editor.apply();
-        editor = sharedPreferences.edit();
-        editor.putString("lastTransferFailure", "");
-        editor.apply();
-        //we restart the download (only the corrupted files will be re-downloaded)
-        global.setFirstStart(true);
-        Intent intent = new Intent(LoadingActivity.this, AccessActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent);
-        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
         finish();
     }
 
-    private void onFailure(int[] reasons, long value) {
-        for (int aReason : reasons) {
-            switch (aReason) {
-                case ErrorCodes.ERROR_LOADING_MODEL:
-                    showingError = true;
-                    notifyModelsLoadingError();
-                    break;
-                case ErrorCodes.SAFETY_NET_EXCEPTION:
-                case ErrorCodes.MISSED_CONNECTION:
-                    showingError = true;
-                    notifyInternetLack();
-                    break;
-                case ErrorCodes.MISSING_GOOGLE_TTS:
-                    showingError = true;
-                    notifyMissingGoogleTTSDialog();
-                    break;
-                case ErrorCodes.GOOGLE_TTS_ERROR:
-                    showingError = true;
-                    notifyGoogleTTSErrorDialog();
-                    break;
-                default:
-                    onError(aReason, value);
-                    break;
-            }
+    private void setStatusText(String text, int color) {
+        if (tvStatus != null) {
+            tvStatus.setText(text);
+            tvStatus.setTextColor(color);
+        }
+    }
+
+    private void showRetryButton(boolean show) {
+        if (btnRetry != null) {
+            btnRetry.setVisibility(show ? View.VISIBLE : View.GONE);
         }
     }
 }

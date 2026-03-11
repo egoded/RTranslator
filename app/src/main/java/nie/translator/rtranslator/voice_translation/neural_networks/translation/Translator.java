@@ -107,19 +107,20 @@ public class Translator extends NeuralNetworkApi {
         mainHandler = new android.os.Handler(Looper.getMainLooper());
         initializeNllbLanguagesCodes(global);
 
-        String encoderPath = global.getFilesDir().getPath() + "/NLLB_encoder.onnx";
-        String decoderPath = global.getFilesDir().getPath() + "/NLLB_decoder.onnx";
-        String vocabPath = global.getFilesDir().getPath() + "/sentencepiece_bpe.model";
-        String embedAndLmHeadPath = global.getFilesDir().getPath() + "/NLLB_embed_and_lm_head.onnx";
-        String cacheInitializerPath = global.getFilesDir().getPath() + "/NLLB_cache_initializer.onnx";
+        String modelsPath = global.getModelsDir().getPath();
+        String encoderPath = modelsPath + "/NLLB_encoder.onnx";
+        String decoderPath = modelsPath + "/NLLB_decoder.onnx";
+        String vocabPath = modelsPath + "/sentencepiece_bpe.model";
+        String embedAndLmHeadPath = modelsPath + "/NLLB_embed_and_lm_head.onnx";
+        String cacheInitializerPath = modelsPath + "/NLLB_cache_initializer.onnx";
 
         final Thread t = new Thread("textTranslation") {
             public void run() {
                 onnxEnv = OrtEnvironment.getEnvironment();
-                //we transfer the vocab file from the assets to the internal memory (because the tokenizer can open vocab only via a path to internal or external memory)
-                File outFile = new File(global.getFilesDir(), "sentencepiece_bpe.model");
+                //we transfer the vocab file from the assets to the models directory (because the tokenizer can open vocab only via a path to internal or external memory)
+                File outFile = new File(global.getModelsDir(), "sentencepiece_bpe.model");
                 if(!outFile.exists()) {
-                    FileTools.copyAssetToInternalMemory(global, "sentencepiece_bpe.model");
+                    FileTools.copyAssetToDirectory(global, "sentencepiece_bpe.model", global.getModelsDir());
                 }
 
                 try {

@@ -1,14 +1,15 @@
 {
-  "dev": {
-    "versionCode": 1,
-    "versionName": "1.0.0"
-  },
-  "stage": {
-    "versionCode": 1,
-    "versionName": "1.0.0"
-  },
-  "prod": {
-    "versionCode": 1,
-    "versionName": "1.0.0"
-  }
+    "dev": {
+        "versionCode": 11,
+        "versionName": "1.0.0",
+        "changelog": "Build 2026-03-11 13:33"
+    },
+    "stage": {
+        "versionCode": 1,
+        "versionName": "1.0.0"
+    },
+    "prod": {
+        "versionCode": 1,
+        "versionName": "1.0.0"
+    }
 }
