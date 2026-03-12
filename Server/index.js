@@ -59,7 +59,24 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    // GET /models/:filename — скачать модель
+    // GET /models — список моделей с размерами
+    if (pathname === '/models' && req.method === 'GET') {
+        if (!fs.existsSync(MODELS_DIR)) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify([]));
+            return;
+        }
+        const files = fs.readdirSync(MODELS_DIR).filter(f => f.endsWith('.onnx'));
+        const models = files.map(f => ({
+            name: f,
+            size: fs.statSync(path.join(MODELS_DIR, f)).size
+        }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(models));
+        return;
+    }
+
+    // GET /models/:filename — скачать модель (с поддержкой Range для докачки)
     const modelMatch = pathname.match(/^\/models\/(.+)$/);
     if (modelMatch && req.method === 'GET') {
         const filename = modelMatch[1];
@@ -71,9 +88,31 @@ const server = http.createServer((req, res) => {
         }
 
         const stat = fs.statSync(filePath);
+        const totalSize = stat.size;
+        const rangeHeader = req.headers['range'];
+
+        if (rangeHeader) {
+            const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+            if (match) {
+                const start = parseInt(match[1], 10);
+                const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
+                const chunkSize = end - start + 1;
+                res.writeHead(206, {
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+                    'Accept-Ranges': 'bytes',
+                    'Content-Length': chunkSize,
+                    'Content-Disposition': `attachment; filename="${filename}"`
+                });
+                fs.createReadStream(filePath, { start, end }).pipe(res);
+                return;
+            }
+        }
+
         res.writeHead(200, {
             'Content-Type': 'application/octet-stream',
-            'Content-Length': stat.size,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': totalSize,
             'Content-Disposition': `attachment; filename="${filename}"`
         });
         fs.createReadStream(filePath).pipe(res);

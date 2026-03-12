@@ -109,7 +109,7 @@ public class LoadingActivity extends GeneralActivity {
             @Override
             public void onNoUpdate() {
                 updateRequired = false;
-                startTranslateActivity();
+                proceedAfterUpdateCheck();
             }
 
             @Override
@@ -144,10 +144,19 @@ public class LoadingActivity extends GeneralActivity {
         });
     }
 
-    private void startTranslateActivity() {
-        Intent intent = new Intent(this, TranslateActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        startActivity(intent);
+    private void proceedAfterUpdateCheck() {
+        // Проверяем наличие моделей
+        if (global.areModelsDownloaded()) {
+            // Модели есть — на экран перевода
+            Intent intent = new Intent(this, TranslateActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } else {
+            // Моделей нет — на экран скачивания
+            Intent intent = new Intent(this, ModelDownloadActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        }
         finish();
     }
 

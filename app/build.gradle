@@ -29,16 +29,15 @@ android {
     defaultConfig {
         applicationId "nie.translator.rtranslator"
         targetSdkVersion 32   //32
-        versionCode 11
+        versionCode 16
         versionName '2.1.5'
         minSdkVersion 24
-        // ВРЕМЕННО ОТКЛЮЧЕНО для тестирования обновлений
-        //externalNativeBuild {
-        //    cmake {
-        //        cppFlags ''
-        //        abiFilters 'arm64-v8a'
-        //    }
-        //}
+        externalNativeBuild {
+            cmake {
+                cppFlags ''
+                abiFilters 'arm64-v8a'
+            }
+        }
     }
 
     buildTypes {
@@ -82,47 +81,25 @@ android {
             applicationIdSuffix ".dev"
             versionNameSuffix "-dev"
             buildConfigField "String", "UPDATE_PATH", "\"dev\""
+            buildConfigField "String", "UPDATE_SERVER_URL", "\"http://10.0.12.102:3001\""
         }
         stage {
             dimension "environment"
             applicationIdSuffix ".stage"
             versionNameSuffix "-stage"
             buildConfigField "String", "UPDATE_PATH", "\"stage\""
+            buildConfigField "String", "UPDATE_SERVER_URL", "\"http://10.0.12.102:3001\""
         }
         prod {
             dimension "environment"
             buildConfigField "String", "UPDATE_PATH", "\"prod\""
+            buildConfigField "String", "UPDATE_SERVER_URL", "\"http://10.0.12.102:3001\""
         }
     }
-    // ВРЕМЕННО ОТКЛЮЧЕНО для тестирования обновлений
-    //externalNativeBuild {
-    //    cmake {
-    //        path file('src/main/cpp/CMakeLists.txt')
-    //        version '3.22.1'
-    //    }
-    //}
-    sourceSets {
-        main {
-            java {
-                exclude 'nie/translator/rtranslator/voice_translation/**'
-                exclude 'nie/translator/rtranslator/bluetooth/**'
-                exclude 'nie/translator/rtranslator/database/**'
-                exclude 'nie/translator/rtranslator/tools/nn/**'
-                exclude 'nie/translator/rtranslator/tools/gui/**'
-                exclude 'nie/translator/rtranslator/tools/services_communication/**'
-                exclude 'nie/translator/rtranslator/settings/**'
-                exclude 'nie/translator/rtranslator/access/**'
-                exclude 'nie/translator/rtranslator/tools/TTS.java'
-                exclude 'nie/translator/rtranslator/tools/ImageActivity.java'
-                exclude 'nie/translator/rtranslator/tools/Timer.java'
-                exclude 'nie/translator/rtranslator/tools/Tools.java'
-                exclude 'nie/translator/rtranslator/tools/BluetoothHeadsetUtils.java'
-                exclude 'nie/translator/rtranslator/tools/EncryptionKey.java'
-                exclude 'nie/translator/rtranslator/tools/GalleryImageSelector.java'
-                exclude 'nie/translator/rtranslator/tools/FileManager.java'
-                exclude 'nie/translator/rtranslator/tools/CustomServiceConnection.java'
-                exclude 'nie/translator/rtranslator/GeneralService.java'
-            }
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
         }
     }
 }
@@ -139,26 +116,25 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-extensions:2.2.0"
     //implementation 'androidx.core:core-ktx:1.10.0'
     //implementation 'androidx.work:work-runtime:2.7.1'
-    //implementation 'androidx.exifinterface:exifinterface:1.3.7'
+    implementation 'androidx.exifinterface:exifinterface:1.3.7'
     //bluetooth communicator
-    //implementation 'com.github.niedev:BluetoothCommunicator:1.0.6'
+    implementation 'com.github.niedev:BluetoothCommunicator:1.0.6'
     //gallery image selector
-    //implementation 'com.github.niedev:GalleryImageSelector:1.0.7'
-    // ВРЕМЕННО ОТКЛЮЧЕНО для тестирования обновлений
+    implementation 'com.github.niedev:GalleryImageSelector:1.0.7'
     //ONNX Runtime
-    //implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.19.0'
-    //implementation 'com.microsoft.onnxruntime:onnxruntime-extensions-android:0.12.4'
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.19.0'
+    implementation 'com.microsoft.onnxruntime:onnxruntime-extensions-android:0.12.4'
     //Ml-Kit
-    //implementation 'com.google.mlkit:language-id:17.0.5'
+    implementation 'com.google.mlkit:language-id:17.0.5'
     //JWS parser
-    //implementation group: 'com.nimbusds', name: 'nimbus-jose-jwt', version: '5.1'
+    implementation group: 'com.nimbusds', name: 'nimbus-jose-jwt', version: '5.1'
     //Room library (database)
-    //def room_version = '2.1.0'
-    //implementation "androidx.room:room-runtime:$room_version"
-    //annotationProcessor "androidx.room:room-compiler:$room_version"
-    //implementation "androidx.room:room-rxjava2:$room_version"
-    //implementation "androidx.room:room-guava:$room_version"
-    //testImplementation "androidx.room:room-testing:$room_version"
+    def room_version = '2.1.0'
+    implementation "androidx.room:room-runtime:$room_version"
+    annotationProcessor "androidx.room:room-compiler:$room_version"
+    implementation "androidx.room:room-rxjava2:$room_version"
+    implementation "androidx.room:room-guava:$room_version"
+    testImplementation "androidx.room:room-testing:$room_version"
     // JSR305 для @Nullable аннотаций
     implementation 'com.google.code.findbugs:jsr305:3.0.2'
     // Tests

@@ -69,6 +69,10 @@
             </intent-filter>
         </activity>
         <activity
+            android:name="nie.translator.rtranslator.ModelDownloadActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
             android:name="nie.translator.rtranslator.TranslateActivity"
             android:exported="false"
             android:screenOrientation="portrait"

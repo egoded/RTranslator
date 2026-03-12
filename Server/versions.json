@@ -1,8 +1,8 @@
 {
     "dev": {
-        "versionCode": 11,
+        "versionCode": 16,
         "versionName": "1.0.0",
-        "changelog": "Build 2026-03-11 13:33"
+        "changelog": "Build 2026-03-11 15:16"
     },
     "stage": {
         "versionCode": 1,

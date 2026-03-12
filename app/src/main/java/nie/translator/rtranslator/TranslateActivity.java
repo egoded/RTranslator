@@ -8,13 +8,16 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ProgressBar;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -22,15 +25,27 @@ import androidx.appcompat.app.AppCompatActivity;
 import java.util.ArrayList;
 import java.util.Locale;
 
+import nie.translator.rtranslator.tools.CustomLocale;
+import nie.translator.rtranslator.voice_translation.neural_networks.NeuralNetworkApi;
+import nie.translator.rtranslator.voice_translation.neural_networks.translation.Translator;
+
 public class TranslateActivity extends AppCompatActivity {
 
+    private static final String TAG = "TranslateActivity";
     private static final int SPEECH_REQUEST_CODE = 100;
 
     private EditText editInput, editOutput;
     private Spinner spinnerFrom, spinnerTo;
+    private Button btnTranslate;
+    private ImageButton btnMic;
+    private TextView tvModelStatus;
+    private ProgressBar progressInit;
     private TextToSpeech tts;
 
-    // Поддерживаемые языки
+    private Global global;
+    private boolean translatorReady = false;
+
+    // Языки NLLB (код языка -> отображаемое имя)
     private final String[] langNames = {"Русский", "English", "中文", "Español", "Français", "Deutsch", "日本語", "한국어", "العربية", "Türkçe"};
     private final String[] langCodes = {"ru", "en", "zh", "es", "fr", "de", "ja", "ko", "ar", "tr"};
 
@@ -39,15 +54,19 @@ public class TranslateActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_translate);
 
+        global = (Global) getApplication();
+
         editInput = findViewById(R.id.editInput);
         editOutput = findViewById(R.id.editOutput);
         spinnerFrom = findViewById(R.id.spinnerFrom);
         spinnerTo = findViewById(R.id.spinnerTo);
-        ImageButton btnMic = findViewById(R.id.btnMic);
-        Button btnTranslate = findViewById(R.id.btnTranslate);
+        btnMic = findViewById(R.id.btnMic);
+        btnTranslate = findViewById(R.id.btnTranslate);
         ImageButton btnSwap = findViewById(R.id.btnSwapLangs);
         ImageButton btnSpeak = findViewById(R.id.btnSpeak);
         ImageButton btnCopy = findViewById(R.id.btnCopy);
+        tvModelStatus = findViewById(R.id.tvModelStatus);
+        progressInit = findViewById(R.id.progressInit);
 
         // Спиннеры языков
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, langNames);
@@ -56,19 +75,15 @@ public class TranslateActivity extends AppCompatActivity {
         spinnerFrom.setSelection(0); // Русский
         spinnerTo.setSelection(1);   // English
 
+        // Кнопки неактивны пока модель не загружена
+        btnTranslate.setEnabled(false);
+        btnMic.setEnabled(false);
+
         // Микрофон — встроенный Android SpeechRecognizer
         btnMic.setOnClickListener(v -> startSpeechRecognition());
 
-        // Перевод — пока заглушка (модели не подключены)
-        btnTranslate.setOnClickListener(v -> {
-            String text = editInput.getText().toString().trim();
-            if (text.isEmpty()) {
-                Toast.makeText(this, "Введите текст", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            // TODO: подключить Translator когда модели будут включены
-            editOutput.setText("[Перевод будет доступен после подключения моделей]\n\nВведено: " + text);
-        });
+        // Перевод через NLLB модель
+        btnTranslate.setOnClickListener(v -> translateText());
 
         // Поменять языки местами
         btnSwap.setOnClickListener(v -> {
@@ -76,7 +91,6 @@ public class TranslateActivity extends AppCompatActivity {
             int toPos = spinnerTo.getSelectedItemPosition();
             spinnerFrom.setSelection(toPos);
             spinnerTo.setSelection(fromPos);
-            // Поменять тексты
             String inputText = editInput.getText().toString();
             String outputText = editOutput.getText().toString();
             editInput.setText(outputText);
@@ -107,6 +121,101 @@ public class TranslateActivity extends AppCompatActivity {
 
         // TTS
         tts = new TextToSpeech(this, status -> {});
+
+        // Инициализация переводчика
+        initTranslator();
+    }
+
+    private void initTranslator() {
+        if (tvModelStatus != null) {
+            tvModelStatus.setVisibility(View.VISIBLE);
+            tvModelStatus.setText("Загрузка модели перевода...");
+        }
+        if (progressInit != null) {
+            progressInit.setVisibility(View.VISIBLE);
+        }
+
+        global.initializeTranslator(new NeuralNetworkApi.InitListener() {
+            @Override
+            public void onInitializationFinished() {
+                runOnUiThread(() -> {
+                    translatorReady = true;
+                    btnTranslate.setEnabled(true);
+                    btnMic.setEnabled(true);
+                    if (tvModelStatus != null) {
+                        tvModelStatus.setText("Модель загружена");
+                        tvModelStatus.postDelayed(() -> tvModelStatus.setVisibility(View.GONE), 2000);
+                    }
+                    if (progressInit != null) {
+                        progressInit.setVisibility(View.GONE);
+                    }
+                    Log.i(TAG, "Переводчик инициализирован");
+                });
+            }
+
+            @Override
+            public void onError(int[] reasons, long value) {
+                runOnUiThread(() -> {
+                    if (tvModelStatus != null) {
+                        tvModelStatus.setText("Ошибка загрузки модели");
+                    }
+                    if (progressInit != null) {
+                        progressInit.setVisibility(View.GONE);
+                    }
+                    Toast.makeText(TranslateActivity.this, "Не удалось загрузить модель перевода", Toast.LENGTH_LONG).show();
+                    Log.e(TAG, "Ошибка инициализации переводчика");
+                });
+            }
+        });
+    }
+
+    private void translateText() {
+        String text = editInput.getText().toString().trim();
+        if (text.isEmpty()) {
+            Toast.makeText(this, "Введите текст", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Translator translator = global.getTranslator();
+        if (translator == null || !translatorReady) {
+            Toast.makeText(this, "Модель ещё загружается", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String fromCode = langCodes[spinnerFrom.getSelectedItemPosition()];
+        String toCode = langCodes[spinnerTo.getSelectedItemPosition()];
+
+        if (fromCode.equals(toCode)) {
+            editOutput.setText(text);
+            return;
+        }
+
+        btnTranslate.setEnabled(false);
+        editOutput.setText("Перевод...");
+
+        CustomLocale fromLocale = new CustomLocale(fromCode);
+        CustomLocale toLocale = new CustomLocale(toCode);
+
+        translator.translate(text, fromLocale, toLocale, 1, false, new Translator.TranslateListener() {
+            @Override
+            public void onTranslatedText(String textToTranslate, String translatedText, long resultID, boolean isFinal, CustomLocale languageOfText) {
+                runOnUiThread(() -> {
+                    editOutput.setText(translatedText);
+                    if (isFinal) {
+                        btnTranslate.setEnabled(true);
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(int[] reasons, long value) {
+                runOnUiThread(() -> {
+                    editOutput.setText("");
+                    btnTranslate.setEnabled(true);
+                    Toast.makeText(TranslateActivity.this, "Ошибка перевода", Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
     }
 
     private void startSpeechRecognition() {
